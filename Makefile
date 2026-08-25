@@ -6,7 +6,7 @@ OBJS         = postcode.o binfmt.o
 DATA         = postcode--$(EXTVERSION).sql
 REGRESS      = parser binary sort random quirks format match partial dps
 REGRESS_OPTS = --load-extension=$(EXTENSION)
-PG_CPPFLAGS  = -std=c99 -Wall -Wpedantic -DEXTVERSION=$(EXTVERSION)
+PG_CPPFLAGS  = -std=c99 -Wall -Wpedantic -DEXTVERSION=$(EXTVERSION) -DTRUE=true -DFALSE=false
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

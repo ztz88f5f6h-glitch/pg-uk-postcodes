@@ -1,4 +1,5 @@
 #include <postgres.h>
+#include <varatt.h>
 #include <utils/builtins.h>
 #include <libpq/pqformat.h>
 
