@@ -14,7 +14,9 @@ __attribute__((warn_unused_result))
 postcode postcode_parse (const char *str, bool partial);
 
 __attribute__((nonnull (2)))
-int postcode_render (postcode p, char buf[8]);
+// buf must be at least 9 bytes: up to 8 visible characters (e.g.
+// "SW1A 1AA") plus a null terminator.
+int postcode_render (postcode p, char buf[9]);
 
 __attribute__((warn_unused_result))
 bool postcode_binchk (postcode p);

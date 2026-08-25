@@ -1,7 +1,22 @@
 #ifndef POSTCODE_H__
 #define POSTCODE_H__
 
+#include <stdbool.h>
 #include "areas.h"
+
+// Up to PG13, postgres.h transitively defined the uppercase TRUE/FALSE
+// macros this file uses; PG14 removed them in favour of plain C99 bool.
+// The Makefile also defines these via -DTRUE=true -DFALSE=false, but
+// that only helps for builds that go through this exact Makefile --
+// guarding it here too means the source still builds correctly under a
+// different build wrapper (e.g. pgxn install) that doesn't pass those
+// flags.
+#ifndef TRUE
+#define TRUE true
+#endif
+#ifndef FALSE
+#define FALSE false
+#endif
 
 #define STR(macro) QUOTE(macro)
 #define QUOTE(name) #name

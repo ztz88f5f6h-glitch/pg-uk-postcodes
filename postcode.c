@@ -71,7 +71,12 @@ Datum postcode_in (PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(postcode_out);
 
 Datum postcode_out (PG_FUNCTION_ARGS) {
-   char *str = palloc(8);
+   // postcode_render() writes up to 8 visible characters (2-letter area +
+   // 2-char district + space + sector + 2-char walk, e.g. "SW1A 1AA") plus
+   // a null terminator -- 9 bytes, not 8. This under-allocation has been a
+   // one-byte heap overflow for every postcode with a 2-letter area and a
+   // 2-char district since this function was written.
+   char *str = palloc(9);
 
    if (postcode_render(PG_GETARG_POSTCODE(0), str) == 0)
       ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
