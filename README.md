@@ -46,12 +46,33 @@ codes in sector 4 of LS2 use % 'LS2 4'.
 Neither or both characters of the walk must be entered. A partial search
 including them is functionally equivalent to the equality = operator.
 
+% is a plain function call, not index-accelerated on its own -- 1.3.0
+registered it under btree strategy 3 (the "equality" slot) specifically to
+get an index-assisted plan, but that produced wrong results whenever an
+index existed on the column (upstream issue #3): btree relies on
+strategy-3 matches being reflexive/interchangeable, which a partial match
+isn't -- two different postcodes can both match the same fragment without
+being equal to each other. 1.3.1 removed that registration. Since 1.3.2,
+range_lower()/range_upper() are the correct replacement for indexed
+partial matches -- see Indexing below.
+
 
 Indexing
 --------
 Standard B-tree operators are supported. The sort order is consistent with
-that of the type rendered to text format using the C locale. Indexes can
-also be used to accelerate partial matches performed via the % operator.
+that of the type rendered to text format using the C locale.
+
+For an indexed partial match, use range_lower()/range_upper() instead of
+%: they express a fragment as a genuine half-open range, using the
+ordinary (and ordinarily correct) </>= operators for full index support:
+
+    SELECT * FROM addresses
+    WHERE postcode >= range_lower('LS24') AND postcode < range_upper('LS24');
+
+Unlike %/!%, range_lower()/range_upper() raise an error on an invalid
+fragment rather than silently returning a value -- they're meant to be
+called with a literal, known-good fragment when constructing a query, not
+with arbitrary/untrusted input.
 
 A B-tree index for the encoded type will be approximately 25% smaller than
 an equivalent index on a column of type text. This may give a performance

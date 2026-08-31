@@ -1,5 +1,5 @@
 CREATE TABLE bintest (p postcode, d dps);
-\copy bintest FROM '/home/dave/dev/postcode/data/binary.data' WITH BINARY;
+\copy bintest FROM '/tmp/postcode_binary_test/data/binary.data' WITH BINARY;
 SELECT * FROM bintest;
     p     | d  
 ----------+----

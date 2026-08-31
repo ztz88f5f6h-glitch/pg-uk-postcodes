@@ -1,10 +1,11 @@
 EXTENSION    = postcode
-EXTVERSION   = 1.3.1
+EXTVERSION   = 1.3.2
 
 MODULE_big   = postcode
 OBJS         = postcode.o binfmt.o
-DATA         = postcode--1.3.0.sql postcode--1.3.1.sql postcode--1.3.0--1.3.1.sql
-REGRESS      = parser binary sort random quirks format match partial dps
+DATA         = postcode--1.3.0.sql postcode--1.3.1.sql postcode--1.3.2.sql \
+                postcode--1.3.0--1.3.1.sql postcode--1.3.1--1.3.2.sql
+REGRESS      = parser binary sort random quirks format match partial dps range
 REGRESS_OPTS = --load-extension=$(EXTENSION)
 PG_CPPFLAGS  = -std=c99 -Wall -Wpedantic -DEXTVERSION=$(EXTVERSION) -DTRUE=true -DFALSE=false
 
@@ -13,3 +14,34 @@ PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 override CFLAGS := $(filter-out -Wdeclaration-after-statement, $(CFLAGS))
+
+# "binary" (COPY ... WITH BINARY, exercising postcode's/dps's binary
+# send/recv functions -- a completely separate code path from the
+# text-based tests that make up the rest of this suite) was never
+# actually wired up to run: input/binary.source needs its @abs_srcdir@
+# token substituted into a real sql/binary.sql before pg_regress can use
+# it, and PGXS (unlike the full Postgres source tree's own regress
+# GNUmakefile) doesn't supply that substitution rule automatically for
+# out-of-tree extensions -- confirmed missing even in the pristine
+# upstream 1.3.1 source, so this was never a working test, not something
+# broken by the 1.3.2 fix. Added 2026-08-31.
+#
+# Substitutes a FIXED staging path, not $(CURDIR)/the real build
+# directory -- so expected/binary.out (which necessarily contains the
+# substituted path verbatim, since pg_regress diffs the echoed query
+# text too) can be one portable, checked-in file that matches on any
+# machine, not something that has to be regenerated per build location.
+# (The previous expected/binary.out had the ORIGINAL upstream author's
+# own literal dev path baked in -- /home/dave/dev/postcode/... -- which
+# is exactly this same problem, unsolved.)
+BINARY_TEST_DIR = /tmp/postcode_binary_test
+
+sql/binary.sql: input/binary.source
+	mkdir -p $(BINARY_TEST_DIR)/data
+	cp data/binary.data $(BINARY_TEST_DIR)/data/binary.data
+	sed 's,@abs_srcdir@,$(BINARY_TEST_DIR),g' $< > $@
+
+installcheck: sql/binary.sql
+check: sql/binary.sql
+
+EXTRA_CLEAN = sql/binary.sql

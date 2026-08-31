@@ -1,0 +1,137 @@
+-- range_lower()/range_upper() are comparison bounds, not necessarily
+-- valid/renderable postcodes in their own right, for anything shorter
+-- than a full 7-character code -- eg range_lower('BA') has no district
+-- set at all, which correctly fails postcode_binchk if you try to cast
+-- it to text (it's not a real postcode, it's "the smallest possible
+-- packed value with area=BA"). Test via comparison, not ::text, except
+-- for the one case where rendering IS guaranteed to work: a full code's
+-- lower bound is exactly the input value itself.
+-- basic bounds: area only -- every real BA postcode must fall in
+-- [range_lower('BA'), range_upper('BA'))
+SELECT 'BA1 1AZ'::postcode >= range_lower('BA') AND 'BA1 1AZ'::postcode < range_upper('BA');
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT 'AB1 1AA'::postcode >= range_lower('BA') AND 'AB1 1AA'::postcode < range_upper('BA'); -- different area: false
+ ?column? 
+----------
+ f
+(1 row)
+
+-- basic bounds: area+district (no space -> district gets both digits,
+-- per the same disambiguation % itself uses)
+SELECT 'BA1 1AZ'::postcode >= range_lower('BA1') AND 'BA1 1AZ'::postcode < range_upper('BA1');
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT 'BA10 1AA'::postcode >= range_lower('BA1') AND 'BA10 1AA'::postcode < range_upper('BA1'); -- district 10, not 1: false
+ ?column? 
+----------
+ f
+(1 row)
+
+-- area+district+sector (explicit space forces the district/sector split)
+SELECT 'BA1 1AZ'::postcode >= range_lower('BA1 1') AND 'BA1 1AZ'::postcode < range_upper('BA1 1');
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT 'BA1 9ZZ'::postcode >= range_lower('BA1 1') AND 'BA1 9ZZ'::postcode < range_upper('BA1 1'); -- sector 9, not 1: false
+ ?column? 
+----------
+ f
+(1 row)
+
+-- full code: range of exactly one value. The lower bound is always
+-- exactly the input value, and always safely renderable -- that's the
+-- one case with nothing masked out.
+SELECT range_lower('BA1 1AZ')::text;
+ range_lower 
+-------------
+ BA1 1AZ
+(1 row)
+
+SELECT range_lower('BA1 1AZ') = 'BA1 1AZ'::postcode;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT range_upper('BA1 1AZ') > 'BA1 1AZ'::postcode;   -- correct ordering
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT range_upper('BA1 1AZ') > range_lower('BA1 1AZ');
+ ?column? 
+----------
+ t
+(1 row)
+
+-- invalid fragments raise, unlike %/!% which just never/always match
+SELECT range_lower('');
+ERROR:  invalid postcode prefix
+SELECT range_lower('BA-');
+ERROR:  invalid postcode prefix
+-- the core soundness property: for every fragment and every real row,
+-- the range form and the %% boolean form must agree exactly
+CREATE TEMP TABLE range_sample (code postcode);
+INSERT INTO range_sample VALUES
+   ('BA1 1AA'), ('BA1 1AZ'), ('BA1 9ZZ'), ('BA10 1AA'), ('BA11 1AA'),
+   ('BA2 1AA'), ('AB1 1AA'), ('LS24 9JT');
+SELECT count(*) AS disagreements FROM range_sample
+WHERE (code % 'BA1')
+  IS DISTINCT FROM (code >= range_lower('BA1') AND code < range_upper('BA1'));
+ disagreements 
+---------------
+             0
+(1 row)
+
+SELECT count(*) AS disagreements FROM range_sample
+WHERE (code % 'BA')
+  IS DISTINCT FROM (code >= range_lower('BA') AND code < range_upper('BA'));
+ disagreements 
+---------------
+             0
+(1 row)
+
+SELECT count(*) AS disagreements FROM range_sample
+WHERE (code % 'BA1 1')
+  IS DISTINCT FROM (code >= range_lower('BA1 1') AND code < range_upper('BA1 1'));
+ disagreements 
+---------------
+             0
+(1 row)
+
+-- range form actually returns the right rows
+SELECT code::text FROM range_sample
+WHERE code >= range_lower('BA1') AND code < range_upper('BA1')
+ORDER BY code;
+  code   
+---------
+ BA1 1AA
+ BA1 1AZ
+ BA1 9ZZ
+(3 rows)
+
+CREATE INDEX ON range_sample USING btree (code);
+ANALYZE range_sample;
+-- range form drives a genuine index scan (ordinary </>= strategies, no
+-- opfamily trickery) -- confirmed live via EXPLAIN separately, not
+-- asserted here since plan cost/text isn't stable output for pg_regress
+SELECT code::text FROM range_sample
+WHERE code >= range_lower('BA1') AND code < range_upper('BA1')
+ORDER BY code;
+  code   
+---------
+ BA1 1AA
+ BA1 1AZ
+ BA1 9ZZ
+(3 rows)
+
