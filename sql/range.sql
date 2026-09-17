@@ -1,11 +1,15 @@
 -- range_lower()/range_upper() are comparison bounds, not necessarily
 -- valid/renderable postcodes in their own right, for anything shorter
 -- than a full 7-character code -- eg range_lower('BA') has no district
--- set at all, which correctly fails postcode_binchk if you try to cast
--- it to text (it's not a real postcode, it's "the smallest possible
--- packed value with area=BA"). Test via comparison, not ::text, except
--- for the one case where rendering IS guaranteed to work: a full code's
--- lower bound is exactly the input value itself.
+-- set at all (it's not a real postcode, it's "the smallest possible
+-- packed value with area=BA"). Before 1.3.3, casting a value like that
+-- to text raised ERRCODE_DATA_CORRUPTED outright (postcode_out()
+-- required a full postcode_binchk() pass); as of 1.3.3 it renders with
+-- '?' for whichever field isn't valid/present instead -- see the cast
+-- section below. Testing here is still mostly via comparison, not
+-- ::text, since the *values* these bounds compare correctly against are
+-- the interesting property -- their text rendering is a display
+-- convenience, not the thing that needs to be right.
 
 -- basic bounds: area only -- every real BA postcode must fall in
 -- [range_lower('BA'), range_upper('BA'))
@@ -29,9 +33,27 @@ SELECT range_lower('BA1 1AZ') = 'BA1 1AZ'::postcode;
 SELECT range_upper('BA1 1AZ') > 'BA1 1AZ'::postcode;   -- correct ordering
 SELECT range_upper('BA1 1AZ') > range_lower('BA1 1AZ');
 
--- invalid fragments raise, unlike %/!% which just never/always match
+-- invalid fragments raise, unlike %/!% which just never/always match --
+-- unchanged by 1.3.3: this is range_lower()/range_upper() rejecting a
+-- malformed *fragment* (the text argument), a completely different
+-- thing from rendering an already-successfully-parsed partial *result*
+-- to text, which is what changed
 SELECT range_lower('');
 SELECT range_lower('BA-');
+
+-- 1.3.3: a partial result -- no district, no sector, no walk set at all
+-- -- is now safely renderable, '?' standing in for whatever isn't
+-- present/valid, rather than raising
+SELECT range_lower('BA')::text;
+SELECT range_upper('BA')::text;
+SELECT to_char(range_lower('BA'), 'AD');
+SELECT range_lower('BA1')::text;   -- district set, sector/walk not
+SELECT range_lower('BA1 1')::text; -- district+sector set, walk not
+
+-- a normal, fully-valid one-digit-district postcode is completely
+-- unaffected -- district2's *absence* was always valid and is still
+-- correctly omitted, not rendered as '?'
+SELECT 'SW1 1AA'::postcode::text;
 
 -- the core soundness property: for every fragment and every real row,
 -- the range form and the %% boolean form must agree exactly

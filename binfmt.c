@@ -89,42 +89,80 @@ postcode postcode_parse (const char *str, bool partial) {
 }
 
 
-int postcode_render (postcode p, char buf[9]) {
-   if (! postcode_binchk(p)) return 0;
+// Per-field validity, factored out of postcode_binchk() so
+// postcode_render() (and postcode_to_char()'s template expansion, in
+// postcode.c -- hence not `static`, declared in binfmt.h) can reuse the
+// exact same bounds field-by-field (render '?' for a field that fails
+// its own check) instead of the former all-or-nothing gate -- and so
+// none of these can drift apart, the same discipline postcode_mask()/
+// postcode_free_bits() already apply to each other in postcode.c.
+// GET_DISTRICT2(p) == 0 (absent) is deliberately valid here, same as
+// before: a one-digit district is a completely normal, fully-valid
+// postcode, not a missing field.
+bool valid_area      (postcode p) { return GET_AREA(p) >= 1 && GET_AREA(p) <= N_ELEMS(areas); }
+bool valid_district1 (postcode p) { return GET_DISTRICT1(p) >= 1 && GET_DISTRICT1(p) <= 11; }
+bool valid_district2 (postcode p) { return GET_DISTRICT2(p) <= 43 && !(GET_DISTRICT2(p) > 11 && GET_DISTRICT2(p) < 18); }
+bool valid_sector     (postcode p) { return GET_SECTOR(p) >= 1 && GET_SECTOR(p) <= 11; }
+bool valid_walk1      (postcode p) { return GET_WALK1(p) >= 1 && GET_WALK1(p) <= 27; }
+bool valid_walk2      (postcode p) { return GET_WALK2(p) >= 1 && GET_WALK2(p) <= 27; }
 
+
+// Never fails: a field that isn't a valid, renderable value (out of
+// range, or -- for area/district1/sector/walk1/walk2, which are never
+// legitimately absent in a full postcode -- simply unset) renders as
+// '?' instead of aborting the whole render. This is what makes
+// range_lower()/range_upper()'s boundary values (deliberately partial:
+// see their own comment in postcode.c) safely renderable via ::text --
+// previously postcode_out() raised ERRCODE_DATA_CORRUPTED for exactly
+// this case, since it required a full postcode_binchk() pass before
+// writing anything at all. district2 == 0 is the one field that's
+// legitimately *absent* rather than invalid (a one-digit district is a
+// normal, complete postcode) and is still correctly omitted entirely,
+// not rendered as '?' -- unchanged from before.
+//
+// Bounds-checks each field before touching areas[] or writing its
+// character, same as postcode_binchk() always has -- WRITE_AREA()
+// indexes areas[GET_AREA(p)-1] directly with no bounds check of its own
+// (see its own comment in postcode.h), so skipping straight to it for
+// an out-of-range area would be an out-of-bounds read, not just a wrong
+// answer. Every other field writes at most one placeholder-or-real
+// character, so the worst case (all fields invalid: "?? ???" or
+// shorter, area contributing only one '?' rather than its normal 1-2
+// chars) is never wider than a normal fully-valid code -- the existing
+// 9-byte buffer (8 visible chars + NUL) is still correctly sized.
+int postcode_render (postcode p, char buf[9]) {
    char *b = buf;
 
-   WRITE_AREA(b,p);
-   WRITE_DISTRICT(b,p);
+   if (valid_area(p)) WRITE_AREA(b,p);
+   else                *(b++) = '?';
+
+   *(b++) = valid_district1(p) ? GET_DISTRICT1(p) + 47 : '?';
+
+   if (GET_DISTRICT2(p))
+      *(b++) = valid_district2(p) ? GET_DISTRICT2(p) + 47 : '?';
+
    *(b++) = ' ';
-   WRITE_SECTOR(b,p);
-   WRITE_WALK(b,p);
+
+   *(b++) = valid_sector(p) ? GET_SECTOR(p) + 47 : '?';
+   *(b++) = valid_walk1(p)  ? GET_WALK1(p)  + 64 : '?';
+   *(b++) = valid_walk2(p)  ? GET_WALK2(p)  + 64 : '?';
 
    *b = '\0';
-   return b - buf; // number of chars written
+   return b - buf; // number of chars written -- always > 0 now
 }
 
 
 bool postcode_binchk (postcode p) {
-   // require a valid area code as defined in areas.h
-   if (GET_AREA(p) < 1 || GET_AREA(p) > N_ELEMS(areas)) return false;
-
-   // [0-9]
-   if (GET_DISTRICT1(p) < 1 || GET_DISTRICT1(p) > 11) return false;
-
-   // empty (== 0) or [A-Z0-9] excluding intervening codes [:;<=>?@]
-   if (GET_DISTRICT2(p) > 43) return false;
-   if (GET_DISTRICT2(p) > 11 && GET_DISTRICT2(p) < 18) return false;
+   if (! valid_area(p))      return false;
+   if (! valid_district1(p)) return false;
+   if (! valid_district2(p)) return false;
 
    // Do not allow district 00
    if (GET_DISTRICT1(p) == 1 && GET_DISTRICT2(p) == 1) return false;
 
-   // [0-9]
-   if (GET_SECTOR(p) < 1 || GET_SECTOR(p) > 11) return false;
-
-   // [A-Z]
-   if (GET_WALK1(p) < 1 || GET_WALK1(p) > 27) return false;
-   if (GET_WALK2(p) < 1 || GET_WALK2(p) > 27) return false;
+   if (! valid_sector(p)) return false;
+   if (! valid_walk1(p))  return false;
+   if (! valid_walk2(p))  return false;
 
    return true;
 }

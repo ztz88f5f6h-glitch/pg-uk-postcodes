@@ -33,6 +33,15 @@ single space between the outcode and incode. If an alternative format is
 required a to_char() function is provided. The default output is equivalent
 to calling to_char(postcode, 'AD SW');
 
+Rendering never fails as of 1.3.3. A field that isn't a valid, complete
+value -- which in practice means a range_lower()/range_upper() boundary
+from a fragment short enough to leave something genuinely unfillable, or
+truly corrupted data -- renders as `?` for whichever specific character
+isn't available, rather than raising. A normal, complete postcode is
+entirely unaffected (including the common case of a one-digit district,
+e.g. `'SW1 1AA'`, which was always valid and still renders exactly as
+entered).
+
 
 Partial matching
 ----------------
@@ -46,15 +55,24 @@ codes in sector 4 of LS2 use % 'LS2 4'.
 Neither or both characters of the walk must be entered. A partial search
 including them is functionally equivalent to the equality = operator.
 
-% is a plain function call, not index-accelerated on its own -- 1.3.0
-registered it under btree strategy 3 (the "equality" slot) specifically to
-get an index-assisted plan, but that produced wrong results whenever an
-index existed on the column (upstream issue #3): btree relies on
-strategy-3 matches being reflexive/interchangeable, which a partial match
-isn't -- two different postcodes can both match the same fragment without
-being equal to each other. 1.3.1 removed that registration. Since 1.3.2,
-range_lower()/range_upper() are the correct replacement for indexed
-partial matches -- see Indexing below.
+1.0 through 1.2, % was a plain function call, index-accelerated for
+neither a constant nor a variable fragment. 1.3.0 registered it under
+btree strategy 3 (the "equality" slot) to try to change that, but this
+produced wrong results whenever an index existed on the column (upstream
+issue #3): btree relies on strategy-3 matches being reflexive/
+interchangeable, which a partial match isn't -- two different postcodes
+can both match the same fragment without being equal to each other. 1.3.1
+removed that registration, restoring correctness but leaving % unindexed
+again either way, same as 1.0-1.2. Since 1.3.3, % gets an index-assisted
+plan for a *constant* fragment (the common case: `code % 'LS24'`, not
+`code % some_column`) via a planner support function that rewrites the
+call into the range_lower()/range_upper() form below at plan time --
+`EXPLAIN` will show a normal index scan, `code`'s own value is what's
+compared, no opfamily trickery, none of 1.3.0's soundness bug. A
+non-constant fragment still runs the plain, always-correct, unindexed
+function, exactly as it always has. See Indexing below for the range
+form itself, which is still the thing to reach for directly if you want
+that plan guaranteed rather than inferred.
 
 
 Indexing
@@ -74,9 +92,62 @@ fragment rather than silently returning a value -- they're meant to be
 called with a literal, known-good fragment when constructing a query, not
 with arbitrary/untrusted input.
 
+Since 1.3.3, both bounds are real, valid, directly-renderable postcodes,
+not raw internal values -- `range_lower('LS1')` is `'LS1 0AA'`,
+`range_upper('LS1')` is `'LS10 0AA'` (the lowest real postcode of
+whichever fragment immediately follows LS1 -- not, perhaps
+counter-intuitively, `'LS2 ...'`: LS1 and LS10 share the same first
+district digit and sort adjacently, LS2 doesn't come until every LS1x
+district is exhausted -- the type's sort order matches the text form's
+own left-to-right character order, so this is the same ordering
+`ORDER BY postcode` or a plain text comparison would already give you).
+This is why `EXPLAIN`'s output for the % rewrite above reads as real
+postcodes too. The interval is always half-open and exclusive at the top
+-- `range_upper(X)` is never itself included by a `< range_upper(X)`
+comparison -- so it being a real postcode (specifically, the real lower
+bound of whatever comes next) is exactly the tiling property that makes
+adjacent fragments' ranges meet with no gap and no overlap, not a loose
+end.
+
 A B-tree index for the encoded type will be approximately 25% smaller than
 an equivalent index on a column of type text. This may give a performance
 advantage where the index can therefore be held entirely within memory.
+
+
+Casting to/from text
+---------------------
+postcode::text and 'SW1A 1AA'::postcode already work without any of
+this -- PostgreSQL falls back to any type's own input/output functions
+for the `::` syntax even with no cast registered at all. What that
+implicit fallback *doesn't* do is participate in ordinary function-
+argument resolution or PostgreSQL's own internal dependent-object
+rewriting (notably `ALTER COLUMN ... TYPE`'s automatic index rebuild) --
+both need a real `pg_cast` entry to work, which is what this adds.
+
+    postcode AS text   -- IMPLICIT
+    text AS postcode   -- ASSIGNMENT
+    dps AS text        -- IMPLICIT
+    text AS dps        -- ASSIGNMENT
+
+Deliberately asymmetric. `<type> AS text` is IMPLICIT because that's the
+direction real call sites actually need auto-coerced -- a functional
+index like `split_part(postcode_col::text, ' ', 1)` needs `postcode_col`
+to coerce into `split_part`'s text parameter automatically for
+PostgreSQL to be able to re-resolve it during `ALTER COLUMN TYPE`'s
+index rewrite, and PostgreSQL only ever auto-applies an IMPLICIT cast
+for that kind of resolution -- an ASSIGNMENT cast (tried first) is only
+auto-applied for INSERT/UPDATE target-column coercion, not general
+argument matching, and doesn't actually fix this. `text AS <type>` stays
+ASSIGNMENT: nothing in practice needs an arbitrary text value silently
+coercing *into* postcode/dps in general expression contexts, and that
+direction can raise on invalid input, which is a worse thing to have
+fire implicitly than a render that always succeeds for a valid value.
+
+Behaviour is otherwise unchanged either direction -- postcode_to_text()/
+dps_to_text() are exactly what ::text already did; text_to_postcode()/
+text_to_dps() are exactly what ::postcode/::dps already did, same strict
+raise-on-invalid-input as always. topostcode() remains the NULL-safe
+alternative for messy/untrusted input, unaffected by any of this.
 
 
 Delivery point suffixes
