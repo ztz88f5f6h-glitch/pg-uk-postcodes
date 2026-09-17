@@ -113,6 +113,19 @@ A B-tree index for the encoded type will be approximately 25% smaller than
 an equivalent index on a column of type text. This may give a performance
 advantage where the index can therefore be held entirely within memory.
 
+Since 1.3.4, `<`/`<=`/`>`/`>=` (both `postcode` and `dps`) carry real
+selectivity estimators (PostgreSQL's own standard `scalarltsel`/
+`scalarlesel`/`scalargtsel`/`scalargesel` and join counterparts, the
+same ones `int4`/`text`/`date` use for these operators) -- previously
+unset entirely, which meant the planner had no way to use `ANALYZE`'s
+own column statistics for a range predicate at all, regardless of how
+accurate or fresh those statistics were, and would fall back to a fixed
+default guess. Confirmed live against a real 34.8M-row table with an
+existing plain `btree(postcode)` index and fresh statistics: the same
+`BETWEEN range_lower/range_upper` query went from a ~39s sequential scan
+to a 270ms index scan, no new index, no query change -- purely from the
+planner now being able to see the real distribution.
+
 
 Casting to/from text
 ---------------------
