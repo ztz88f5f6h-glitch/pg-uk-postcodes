@@ -1,0 +1,2 @@
+-- 1.3.5 adds the GX Gibraltar postcode area. The area encoding is
+-- append-only, so existing binary values remain unchanged.

@@ -1558,6 +1558,12 @@ SELECT 'PR82WZ'::postcode::text = 'PR8 2WZ';
  t
 (1 row)
 
+SELECT 'GX111AA'::postcode::text = 'GX11 1AA';
+ ?column? 
+----------
+ t
+(1 row)
+
 SELECT 'EH216SG'::postcode::text = 'EH21 6SG';
  ?column? 
 ----------

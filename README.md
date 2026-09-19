@@ -5,7 +5,8 @@ UK postcode encoded in 32 bits and optimised for indexing and partial matches
 
 Coverage
 --------
-Supports all 126 postcode areas. The crown dependencies GY, JE and IM are
+Supports all 127 postcode areas. The crown dependencies GY, JE and IM and
+Gibraltar's GX area are
 included plus two non-geographic areas BX and BF.
 
 The type should support all current and future codes with the sole exception

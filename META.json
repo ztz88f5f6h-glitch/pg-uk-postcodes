@@ -1,6 +1,6 @@
 {
    "name": "postcodes-uk",
-   "version": "1.3.1",
+   "version": "1.3.5",
    "abstract": "UK postcode type optimised for indexing (maintained fork)",
    "maintainer": "John Burns <john@impactdatametrics.com>",
    "license": "freebsd",
@@ -14,9 +14,9 @@
    "provides": {
       "postcode": {
          "abstract": "UK postcode type optimised for indexing",
-         "file": "postcode--1.3.1.sql",
+         "file": "postcode--1.3.5.sql",
          "docfile": "README.md",
-         "version": "1.3.1"
+         "version": "1.3.5"
       }
    },
    "resources": {
