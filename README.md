@@ -184,9 +184,14 @@ Binary format
 For client applications exchanging results in binary format the functions
 declared in binfmt.h can be used for parsing from or rendering to text format
 
+Credits
+-------
+Developed up to 1.3.0 by Dave Green at patchsoft.
+Taken up for bug fixing and gap filing by John Burn of Impact Data Metrics. The bulk of the code is from David Green.
+Claude AI was used to analyse and apply code fixes and generate tests
 
 Bugs
 ----
-Regression tests are provided using pg_regress via the installcheck target.
-Reports of errors or omissions are welcomed by the author via email to
-dgreen at patchsoft .co.uk (remove all spaces).
+Regression tests are provided using pg_regress via the installcheck target. Please raise issues on the githib site or PGXN
+
+
