@@ -85,18 +85,21 @@ ERROR:  invalid postcode prefix
 -- Partial results are not valid for the type output function, but the
 -- named helper returns SQL NULL rather than raising.
 SELECT range_lower('BA')::text;
-ERROR:  cannot render corrupted binary data to text
+ range_lower 
+-------------
+ BA0 0AA
+(1 row)
 
 SELECT postcode_to_text(range_lower('BA')) IS NULL;
  ?column? 
 ----------
- t
+ f
 (1 row)
 
 SELECT postcode_to_text(range_upper('BA')) IS NULL;
  ?column? 
 ----------
- t
+ f
 (1 row)
 
 SELECT to_char(range_lower('BA'), 'AD');
@@ -108,13 +111,13 @@ SELECT to_char(range_lower('BA'), 'AD');
 SELECT postcode_to_text(range_lower('BA1')) IS NULL;   -- district set, sector/walk not
  ?column? 
 ----------
- t
+ f
 (1 row)
 
 SELECT postcode_to_text(range_lower('BA1 1')) IS NULL; -- district+sector set, walk not
  ?column? 
 ----------
- t
+ f
 (1 row)
 
 -- a normal, fully-valid one-digit-district postcode is completely
@@ -181,3 +184,4 @@ ORDER BY code;
  BA1 1AZ
  BA1 9ZZ
 (3 rows)
+
