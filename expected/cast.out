@@ -17,6 +17,12 @@ SELECT text_to_postcode('SW1A 1AA') = 'SW1A 1AA'::postcode;
  t
 (1 row)
 
+SELECT postcode_to_text(range_lower('BA')) IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
 -- and the cast syntax itself now goes through a real pg_cast, not just
 -- the implicit I/O fallback
 SELECT CAST('SW1A 1AA'::postcode AS text) = 'SW1A 1AA';
@@ -113,4 +119,3 @@ SELECT code::text, split_part(code::text, ' ', 1) FROM idx_survives ORDER BY cod
  M1 1AE   | M1
  SW1A 1AA | SW1A
 (3 rows)
-

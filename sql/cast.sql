@@ -8,6 +8,7 @@
 -- postcode <-> text: new named functions agree with the old :: fallback
 SELECT postcode_to_text('SW1A 1AA'::postcode) = 'SW1A 1AA'::postcode::text;
 SELECT text_to_postcode('SW1A 1AA') = 'SW1A 1AA'::postcode;
+SELECT postcode_to_text(range_lower('BA')) IS NULL;
 
 -- and the cast syntax itself now goes through a real pg_cast, not just
 -- the implicit I/O fallback
