@@ -38,10 +38,16 @@ postcode postcode_parse (const char *str, bool partial) {
    if (! (n == 1 || n == 2)) return 0;
 
    memcpy(key, buf, n);
-   char *a = bsearch(key, areas, N_ELEMS(areas), sizeof(char *), bcmp_ptr);
+   size_t area = 0;
+   for (size_t i = 0; i < N_ELEMS(areas); i++) {
+      if (strcmp(key, areas[i]) == 0) {
+         area = i + 1;
+         break;
+      }
+   }
 
-   if (!a) return 0;
-   SET_AREA(res, ((char **) a) - ((char **) areas) + 1);
+   if (!area) return 0;
+   SET_AREA(res, area);
 
    if (buf[n] == '\0') return partial ? res : 0;
 

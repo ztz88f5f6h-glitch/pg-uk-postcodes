@@ -258,6 +258,7 @@ SELECT 'EX26LJ'::postcode::text = 'EX2 6LJ';
 SELECT 'PL35XG'::postcode::text = 'PL3 5XG';
 SELECT 'HG12LQ'::postcode::text = 'HG1 2LQ';
 SELECT 'PR82WZ'::postcode::text = 'PR8 2WZ';
+SELECT 'GX111AA'::postcode::text = 'GX11 1AA';
 SELECT 'EH216SG'::postcode::text = 'EH21 6SG';
 SELECT 'PE302NU'::postcode::text = 'PE30 2NU';
 SELECT 'CV128TA'::postcode::text = 'CV12 8TA';

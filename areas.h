@@ -1,8 +1,11 @@
-/* Used for binary search and ordered according to strcmp()
+/* Used for area encoding. Existing entries are append-only: their positions
+   are part of the on-disk and binary wire format. Keep new areas at the end
+   and use the linear lookup in postcode_parse() rather than reordering this
+   array.
 
-   Any changes break binary compatibility so in the unlikely
-   event further postcode areas are allocated it will be necessary
-   to dump and restore any tables with columns of this type
+   Inserting or reordering entries breaks binary compatibility. Appending an
+   entry preserves existing values, but older servers will not understand
+   values using the new area.
 
    Client applications receiving results in binary format should
    check the extension version matches return of postcode_version()
@@ -136,5 +139,6 @@ static const char * const areas[] = {
    "WS", // Walsall
    "WV", // Wolverhampton
    "YO", // York
-   "ZE"  // Lerwick
+   "ZE", // Lerwick
+   "GX"  // Gibraltar
 };
