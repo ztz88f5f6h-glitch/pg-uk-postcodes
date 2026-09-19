@@ -127,6 +127,12 @@ Datum postcode_in (PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(postcode_out);
 
 Datum postcode_out (PG_FUNCTION_ARGS) {
+   postcode p = PG_GETARG_POSTCODE(0);
+
+   if (! postcode_binchk(p))
+      ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                      errmsg (_("cannot render corrupted binary data to text"))));
+
    // postcode_render() writes up to 8 visible characters (2-letter area +
    // 2-char district + space + sector + 2-char walk, e.g. "SW1A 1AA") plus
    // a null terminator -- 9 bytes, not 8. This under-allocation has been a
@@ -134,13 +140,10 @@ Datum postcode_out (PG_FUNCTION_ARGS) {
    // 2-char district since this function was written.
    char *str = palloc(9);
 
-   // postcode_render() never fails as of this version -- an invalid or
-   // absent field renders as '?' rather than raising (see its own
-   // comment in binfmt.c). Previously required a full postcode_binchk()
-   // pass or raised ERRCODE_DATA_CORRUPTED, which meant range_lower()/
-   // range_upper()'s deliberately-partial boundary values (see their
-   // comment below) couldn't be cast to text at all.
-   postcode_render(PG_GETARG_POSTCODE(0), str);
+   // postcode_render() is also used by postcode_to_char() and the named
+   // postcode_to_text() helper, where partial values are representable.
+   // The type output function has already rejected those values above.
+   postcode_render(p, str);
 
    PG_RETURN_CSTRING(str);
 }
@@ -519,8 +522,13 @@ Datum postcode_to_char (PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(postcode_to_text);
 
 Datum postcode_to_text (PG_FUNCTION_ARGS) {
+   postcode p = PG_GETARG_POSTCODE(0);
+
+   if (! postcode_binchk(p))
+      PG_RETURN_NULL();
+
    char str[9];
-   postcode_render(PG_GETARG_POSTCODE(0), str);
+   postcode_render(p, str);
    PG_RETURN_TEXT_P(cstring_to_text(str));
 }
 
@@ -554,8 +562,14 @@ Datum dps_in (PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(dps_out);
 
 Datum dps_out (PG_FUNCTION_ARGS) {
+   dps d = PG_GETARG_DPS(0);
+
+   if (! postcode_dps_binchk(d))
+      ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                      errmsg (_("cannot render corrupted binary data to text"))));
+
    char *str = palloc(3);
-   postcode_dps_render(PG_GETARG_DPS(0), str);
+   postcode_dps_render(d, str);
    PG_RETURN_CSTRING(str);
 }
 
@@ -650,6 +664,10 @@ PG_FUNCTION_INFO_V1(dps_to_text);
 
 Datum dps_to_text (PG_FUNCTION_ARGS) {
    dps d = PG_GETARG_DPS(0);
+
+   if (! postcode_dps_binchk(d))
+      PG_RETURN_NULL();
+
    char str[3];
 
    if (postcode_dps_render(d, str) == 0)

@@ -194,5 +194,5 @@ int postcode_dps_render (dps d, char buf[3]) {
 
 
 bool postcode_dps_binchk (dps d) {
-   return d <= N_ELEMS(dpsuffix);
+   return d >= 1 && d <= N_ELEMS(dpsuffix);
 }

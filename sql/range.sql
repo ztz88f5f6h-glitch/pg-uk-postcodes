@@ -2,14 +2,9 @@
 -- valid/renderable postcodes in their own right, for anything shorter
 -- than a full 7-character code -- eg range_lower('BA') has no district
 -- set at all (it's not a real postcode, it's "the smallest possible
--- packed value with area=BA"). Before 1.3.3, casting a value like that
--- to text raised ERRCODE_DATA_CORRUPTED outright (postcode_out()
--- required a full postcode_binchk() pass); as of 1.3.3 it renders with
--- '?' for whichever field isn't valid/present instead -- see the cast
--- section below. Testing here is still mostly via comparison, not
--- ::text, since the *values* these bounds compare correctly against are
--- the interesting property -- their text rendering is a display
--- convenience, not the thing that needs to be right.
+-- packed value with area=BA"). Such values are valid comparison bounds,
+-- but are not valid postcodes for the type output function. The named
+-- postcode_to_text() helper deliberately returns SQL NULL for them.
 
 -- basic bounds: area only -- every real BA postcode must fall in
 -- [range_lower('BA'), range_upper('BA'))
@@ -41,14 +36,14 @@ SELECT range_upper('BA1 1AZ') > range_lower('BA1 1AZ');
 SELECT range_lower('');
 SELECT range_lower('BA-');
 
--- 1.3.3: a partial result -- no district, no sector, no walk set at all
--- -- is now safely renderable, '?' standing in for whatever isn't
--- present/valid, rather than raising
+-- Partial results are not valid for the type output function, but the
+-- named helper returns SQL NULL rather than raising.
 SELECT range_lower('BA')::text;
-SELECT range_upper('BA')::text;
+SELECT postcode_to_text(range_lower('BA')) IS NULL;
+SELECT postcode_to_text(range_upper('BA')) IS NULL;
 SELECT to_char(range_lower('BA'), 'AD');
-SELECT range_lower('BA1')::text;   -- district set, sector/walk not
-SELECT range_lower('BA1 1')::text; -- district+sector set, walk not
+SELECT postcode_to_text(range_lower('BA1')) IS NULL;   -- district set, sector/walk not
+SELECT postcode_to_text(range_lower('BA1 1')) IS NULL; -- district+sector set, walk not
 
 -- a normal, fully-valid one-digit-district postcode is completely
 -- unaffected -- district2's *absence* was always valid and is still
